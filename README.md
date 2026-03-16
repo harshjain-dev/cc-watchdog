@@ -10,6 +10,14 @@ Claude Code has a 200k token context window. When it fills up, Claude auto-compa
 
 The better approach: **exit early, at 50% remaining**, save exactly what matters to memory, and restart fresh. The new session reads the saved progress and picks up exactly where you left off — with full context available.
 
+### Does this reduce hallucination?
+
+Yes — and this is the main practical benefit beyond token management.
+
+As the context window fills, the model's attention becomes increasingly diluted across a larger and larger conversation history. It starts losing track of constraints set earlier, repeating work it already did, and making confident mistakes about the current state of files. This isn't a model quality issue — it's a mechanical consequence of the context window filling. Every LLM behaves this way.
+
+By exiting at 50%, the snapshot is captured while the model is still sharp. The new session starts with full attention available and a clean, accurate summary of where things stand.
+
 ---
 
 ## How It Works
@@ -168,6 +176,29 @@ View logs:
 ```bash
 tail -f ~/.claude/watchdog/watchdog.log
 ```
+
+---
+
+## What It Does Well vs. What It Won't Fix
+
+### Works well
+
+- **Prevents context degradation** — exits before the model starts losing track of earlier instructions, giving you a clean restart with full attention available
+- **No lost work** — files are already saved on disk; the watchdog just records which ones were touched and what the task was
+- **Transparent resumption** — the new session reads the snapshot and continues without you having to re-explain anything for straightforward tasks
+- **Git safety net** — uncommitted changes are stashed before exit, so nothing in-flight is lost
+
+### What it won't do perfectly
+
+- **Conversational nuance is lost** — the snapshot captures files, actions, and the original prompt. It does not capture the back-and-forth reasoning, decisions you talked through, or context you gave mid-session ("by the way, ignore that approach, we decided to..."). If your session involved a lot of iterative discussion, the new session starts from the task description, not the full conversation.
+
+- **Mid-thought interruption** — if Claude is in the middle of a multi-step operation (e.g. writing several files as part of one change), the watchdog exits at the next poll interval regardless. The new session will see the partial state and may need to re-examine what was completed.
+
+- **The summary is structural, not semantic** — PROGRESS.md lists files modified and raw tool calls. It doesn't summarise *why* decisions were made. If your task required deep reasoning to get to a certain approach, that reasoning isn't preserved — only the outcome is.
+
+- **First message of new session requires context** — the new Claude reads PROGRESS.md but you may still need to confirm the direction with a short message like "continue" or clarify if the task evolved significantly from the original prompt.
+
+- **Not a substitute for good task scoping** — if a task is genuinely too large for one context window even at 50%, you'll cycle through multiple restarts. Breaking large tasks into smaller, scoped sessions will always work better than relying on the watchdog to stitch everything together.
 
 ---
 
