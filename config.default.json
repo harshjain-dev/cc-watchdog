@@ -1,0 +1,12 @@
+{
+    "context_remaining_threshold": 50,
+    "auto_exit_claude": true,
+    "poll_interval": 15,
+    "default_max_context": 200000,
+    "git_stash_on_threshold": true,
+    "notify_on_threshold": true,
+    "write_progress_to_memory": true,
+    "log_file": "~/.claude/watchdog/watchdog.log",
+    "pid_file": "~/.claude/watchdog/watchdog.pid",
+    "handled_sessions_file": "~/.claude/watchdog/handled.json"
+}
