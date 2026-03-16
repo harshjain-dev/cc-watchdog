@@ -385,6 +385,17 @@ Check current state of modified files before making further changes.
 If git stash was used, run `git stash pop` to restore work-in-progress changes.
 
 **Total tool calls this session:** {progress['total_tool_calls']}
+
+## Previous Conversation Transcript
+
+The full conversation from the terminated session is available at:
+
+```
+{session['transcript_path']}
+```
+
+Read this file if you need to recover reasoning, decisions, or context that
+is not captured in the structured summary above. Use selectively — it is large.
 """
 
     progress_path = memory_dir / "PROGRESS.md"
@@ -411,12 +422,17 @@ def find_claude_pid_for_dir(work_dir: Path) -> Optional[int]:
     Uses lsof on macOS to check process cwd.
     """
     try:
-        # Get all candidate PIDs
+        # Use `ps` instead of `pgrep` — pgrep can't see the Claude process on macOS
+        # (likely due to entitlements). `ps -eo pid,comm` is reliable.
         result = subprocess.run(
-            ["pgrep", "-f", "claude"],
+            ["ps", "-eo", "pid,comm"],
             capture_output=True, text=True, timeout=5
         )
-        pids = [int(p.strip()) for p in result.stdout.strip().split("\n") if p.strip().isdigit()]
+        pids = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 1)
+            if len(parts) == 2 and parts[1] == "claude" and parts[0].isdigit():
+                pids.append(int(parts[0]))
     except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
         return None
 
@@ -699,12 +715,11 @@ def start_daemon(config: dict):
     # Child process — become daemon
     os.setsid()
 
-    # Redirect stdout/stderr to log
-    log_path = expand_path(config["log_file"])
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_fd = open(log_path, "a")
-    os.dup2(log_fd.fileno(), sys.stdout.fileno())
-    os.dup2(log_fd.fileno(), sys.stderr.fileno())
+    # Silence stdout/stderr — log() already writes to the log file directly.
+    # Redirecting stderr to the log AND writing explicitly would duplicate every line.
+    devnull = open(os.devnull, "w")
+    os.dup2(devnull.fileno(), sys.stdout.fileno())
+    os.dup2(devnull.fileno(), sys.stderr.fileno())
 
     write_pid(config)
 
